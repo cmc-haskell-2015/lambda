@@ -9,3 +9,9 @@ cabal-dev
 .cabal-sandbox/
 cabal.sandbox.config
 cabal.config
+*.cbp
+*.depend
+*.layout
+*build_log*
+tmp
+Makefile
