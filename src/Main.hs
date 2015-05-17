@@ -4,16 +4,15 @@ import Eval
 
 import System.IO
 
--- Интерактивная среда программирования (REPL)
--- Завершается при вводе пустой строки
+-- | Считывание строки
+readLine :: IO String
+readLine = putStr "> " >> hFlush stdout >> getLine
 
--- | Вычисление и вывод значения выражения
-evalPrint :: String -> IO ()
-evalPrint [] = return ()
-evalPrint str = putStrLn (parseEval str) >> readLine
+-- | Интерактивная среда программирования (REPL)
+-- | Завершается при вводе пустой строки
+repl :: String -> IO ()
+repl [] = return ()
+repl str = putStrLn (parseEval str) >> readLine >>= repl
 
--- | Считывание выражения
-readLine :: IO ()
-readLine = putStr "> " >> hFlush stdout >> getLine >>= evalPrint
-
-main = readLine
+main :: IO()
+main = readLine >>= repl
