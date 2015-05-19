@@ -67,10 +67,21 @@ eval' :: LambdaExpr -> [LambdaExpr]
 eval' expr = eval'' (pure expr) []
 
 -- | Интерпретация синтаксического дерева или ошибки парсера
-eval :: Either ParseError LambdaExpr -> String
-eval (Left err) = show err
-eval (Right expr) = intercalate "\n" $ map show $ reverse $ eval' expr
+eval :: Either ParseError (Either LambdaExpr FuncTab) -> Either String FuncTab
+
+eval (Left err) = Left $ show err
+
+eval (Right (Left expr))
+    = Left
+    $ intercalate "\n"
+    $ map show
+    $ reverse
+    $ eval' expr
+
+eval (Right (Right ft)) = Right ft
 
 -- | Синтаксический анализ и интерпретация лямбда-выражения
-parseEval :: String -> String
-parseEval str = eval $ parseLine str
+parseEval :: FuncTab -> String -> Either String FuncTab
+parseEval ft str
+    = eval
+    $ parseLine ParserState { inRepl = True, ftab = ft } str
