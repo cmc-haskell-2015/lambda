@@ -5,23 +5,29 @@ import Control.Applicative
 import Text.Parsec.Prim
 
 -- | Имя переменной.
-type VarName = Char
+type VarName = String
 
 -- | Имя лямбда-терма.
 type FuncName = String
+
+-- | Список связанных переменных.
+type BoundVars = [VarName]
+
+-- | Список свободных переменных.
+type UnboundVars = [VarName]
 
 -- | Синтаксическое дерево.
 data LambdaExpr
     = Apply LambdaExpr LambdaExpr -- ^ Аппликация.
     | Lambda VarName LambdaExpr   -- ^ Лямбда-абстракция.
     | Var VarName                 -- ^ Переменная.
-    | Ident FuncName              -- ^ Именованный лямбда-терм.
+--    | Ident FuncName              -- ^ Именованный лямбда-терм.
 
 instance Show LambdaExpr where
     show (Apply f x) = '(':(show f) ++ ' ':(show x) ++ ")"
-    show (Lambda x f) = "(\\" ++ x:'.':(show f) ++ ")"
-    show (Var x) = [x]
-    show (Ident x) = x
+    show (Lambda x f) = "(\\" ++ x ++ '.':(show f) ++ ")"
+    show (Var x) = x
+--    show (Ident x) = x
 
 -- | Ассоциативный список именованных лямбда-термов.
 type FuncTab = [(FuncName, LambdaExpr)]
@@ -30,7 +36,7 @@ type FuncTab = [(FuncName, LambdaExpr)]
 data ParserState
     = ParserState
     { ftab :: FuncTab
-    , static :: Bool }
+    {-, static :: Bool-} }
 
 -- | Тип парсера.
 type ParserT a = Parsec String ParserState a

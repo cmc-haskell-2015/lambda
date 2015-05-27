@@ -10,6 +10,7 @@ import Data.List
 readLine :: IO String
 readLine = putStr "> " >> hFlush stdout >> getLine
 
+-- | Вывод значения выражения или нового списка именованных лямбда-термов.
 printRes :: Either String FuncTab -> IO ()
 printRes (Left str) = putStrLn str
 printRes (Right ft) = putStrLn $ intercalate "\n" $ map show ft

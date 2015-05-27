@@ -6,7 +6,7 @@
 -- \<уровень\>       ::= \<выражение\> [\<выражение\>]
 -- \<выражение\>     ::= \<переменная\> | \<идентификатор\> | \<переменные\>.\<уровень\> | (\<уровень\>)
 -- \<переменные\>    ::= \<переменная\> [\<переменная\>]
--- \<переменная\>    ::= \<строчная буква\>
+-- \<переменная\>    ::= \<строчная буква\> [\<строчная буква или цифра\>]
 -- \<идентификатор\> ::= \<заглавная буква\> [\<строчная буква или цифра\>]
 -- @
 --
@@ -29,15 +29,15 @@ lexer = makeTokenParser
         , nestedComments = True
         , identStart = upper
         , identLetter = alphaNum
-        , opStart = oneOf ""
-        , opLetter = oneOf ""
+        , opStart = lower
+        , opLetter = alphaNum
         , reservedNames = []
         , reservedOpNames = []
         , caseSensitive = True }
 
 -- | Парсер переменной.
 parseVar :: ParserT VarName
-parseVar = lexeme lexer lower
+parseVar = operator lexer
 
 -- | Парсер списка переменных.
 parseVars :: ParserT [VarName]
@@ -45,10 +45,7 @@ parseVars = many1 parseVar
 
 -- | Парсер лямбда-выражения в скобках.
 parseLambdaParen :: ParserT LambdaExpr
-parseLambdaParen = do lexeme lexer (char '(')
-                      ret <- parseLevel
-                      lexeme lexer (char ')')
-                      return ret
+parseLambdaParen = parens lexer parseLevel
 
 -- | Парсер лямбда-абстракции.
 parseLambdaFunc :: ParserT LambdaExpr
@@ -60,16 +57,16 @@ parseLambdaFunc = do lexeme lexer (char '\\')
 
 -- | Поиск лямбда-терма в списке именованных лямбда-термов.
 -- Возвращает ошибку парсера если в списке нет лямбда-терма с данным именем.
-lookup' :: Bool -> FuncName -> Maybe LambdaExpr -> ParserT LambdaExpr
-lookup' _ name Nothing = fail $ name ++ " undefined"
-lookup' True _ (Just f) = return f
-lookup' False name (Just f) = return $ Ident name
+lookup' :: FuncName -> Maybe LambdaExpr -> ParserT LambdaExpr
+lookup' name Nothing = fail $ name ++ " undefined"
+lookup' _ (Just f) = return f
+--lookup' name (Just f) = return $ Ident name
 
 -- | Парсер подстановки именованного лямбда-терма.
 parseFunCall :: ParserT LambdaExpr
 parseFunCall = do name <- identifier lexer
                   st <- getState
-                  lookup' (static st) name (lookup name (ftab st))
+                  lookup' name (lookup name (ftab st))
 
 -- | Парсер лямбда-выражения без аппликации на верхнем уровне вложенности.
 parseLambdaExpr :: ParserT LambdaExpr

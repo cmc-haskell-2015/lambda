@@ -5,6 +5,7 @@ import Types
 import Parser
 
 import Data.List
+import Data.Maybe
 import Control.Applicative
 import Control.Monad
 import Text.Parsec.Error
@@ -19,14 +20,49 @@ contains x (Lambda y expr) = (x /= y) && contains x expr
 
 contains x (Apply ex1 ex2) = contains x ex1 || contains x ex2
 
+-- | Попытка альфа-конверсии.
+tryAlphaConvert :: VarName -> VarName -> LambdaExpr -> Maybe LambdaExpr
+
+tryAlphaConvert x x1 var@(Var y) | (y == x) = Just $ Var x1
+                                 | (y == x1) = Nothing
+                                 | otherwise = Just var
+
+tryAlphaConvert x x1 fun@(Lambda y expr)
+    | (y == x1) = if contains x expr then Nothing else Just fun
+    | (y == x) = if contains x1 expr then Nothing else Just fun
+    | otherwise = Lambda y <$> tryAlphaConvert x x1 expr
+
+tryAlphaConvert x x1 (Apply ex1 ex2) = Apply
+                                       <$> tryAlphaConvert x x1 ex1
+                                       <*> tryAlphaConvert x x1 ex2
+
+-- | Альфа-конверсия лямбда-абстракции.
+alphaConvert :: LambdaExpr -> LambdaExpr -> Int -> LambdaExpr
+
+alphaConvert fun@(Lambda x ex) arg n
+    | (contains x1 arg || isNothing conv) = alphaConvert fun arg (n + 1)
+    | otherwise = Lambda x1 $ fromJust conv
+    where x1 = x ++ (show n)
+          conv = tryAlphaConvert x x1 ex
+
+alphaConvert _ _ _ = error "alphaConvert"
+
+-- | Подстановка выражения-аргумента вместо связанной переменной
+-- после альфа-конверсии.
+replaceArg' :: VarName -> LambdaExpr -> LambdaExpr -> LambdaExpr
+replaceArg' x arg fun@(Lambda y ex) = Lambda y $ replaceArg x arg ex
+replaceArg' _ _ _ = error "replaceArg'"
+
 -- | Подстановка выражения-аргумента вместо связанной переменной.
 replaceArg :: VarName -> LambdaExpr -> LambdaExpr -> LambdaExpr
 
 replaceArg x arg var@(Var y) | (x == y) = arg
                              | otherwise = var
 
-replaceArg x arg fun@(Lambda y ex) | (x == y) = fun
-                                   | otherwise = Lambda y (replaceArg x arg ex)
+replaceArg x arg fun@(Lambda y ex)
+    | (x == y) = fun
+    | (contains y arg) = replaceArg' x arg $ alphaConvert fun arg 0
+    | otherwise = Lambda y $ replaceArg x arg ex
 
 replaceArg x arg (Apply ex1 ex2) = Apply (replaceArg x arg ex1)
                                          (replaceArg x arg ex2)
@@ -85,4 +121,4 @@ eval (Right (Right ft)) = Right ft
 parseEval :: FuncTab -> String -> Either String FuncTab
 parseEval ft str
     = eval
-    $ parseLine ParserState { static = True, ftab = ft } str
+    $ parseLine ParserState { ftab = ft } str
