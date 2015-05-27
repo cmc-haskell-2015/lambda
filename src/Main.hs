@@ -1,18 +1,32 @@
 module Main where
 
-import Eval (parseEval)
+import Types
+import Eval
 
 import System.IO
+import Data.List
 
 -- | Считывание строки.
 readLine :: IO String
 readLine = putStr "> " >> hFlush stdout >> getLine
 
+printRes :: Either String FuncTab -> IO ()
+printRes (Left str) = putStrLn str
+printRes (Right ft) = putStrLn $ intercalate "\n" $ map show ft
+
+-- | Обновление списка именованных лямбда-термов.
+updateFuncTab :: FuncTab -> Either String FuncTab -> FuncTab
+updateFuncTab ft (Left _) = ft
+updateFuncTab _ (Right ft) = ft
+
 -- | Интерактивная среда программирования (REPL).
 -- Завершается при вводе пустой строки.
-repl :: String -> IO ()
-repl [] = return ()
-repl str = putStrLn (parseEval str) >> readLine >>= repl
+repl :: FuncTab -> String -> IO ()
+repl ft [] = return ()
+repl ft str = do let x = parseEval ft str
+                 printRes x
+                 s <- readLine
+                 repl (updateFuncTab ft x) s
 
 main :: IO()
-main = readLine >>= repl
+main = readLine >>= (repl [])
