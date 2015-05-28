@@ -21,6 +21,7 @@ library
     Eval
     Parser
     Types
+    Commands
   build-depends:       base >=4.6 && <4.8 
                      , parsec >=3.0 && <3.2
   hs-source-dirs:      src

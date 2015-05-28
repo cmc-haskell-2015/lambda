@@ -2,7 +2,7 @@
 -- BNF для лямбда-выражений:
 --
 -- @
--- \<строка\>        ::= \<идентификатор\> = \<уровень\> | \<уровень\>
+-- \<строка\>        ::= :\<команда\> \<аргумент\> | \<идентификатор\> = \<уровень\> | \<уровень\>
 -- \<уровень\>       ::= \<выражение\> [\<выражение\>]
 -- \<выражение\>     ::= \<переменная\> | \<идентификатор\> | \<переменные\>.\<уровень\> | (\<уровень\>)
 -- \<переменные\>    ::= \<переменная\> [\<переменная\>]
@@ -10,10 +10,13 @@
 -- \<идентификатор\> ::= \<заглавная буква\> [\<строчная буква или цифра\>]
 -- @
 --
-module Parser (parseLine) where
+module Parser where
 
 import Types
+import Commands
 
+import Data.Maybe
+import Control.Applicative ((<$>))
 import Control.Monad
 import Text.Parsec
 import Text.Parsec.String
@@ -58,7 +61,7 @@ parseLambdaFunc = do lexeme lexer (char '\\')
 -- | Поиск лямбда-терма в списке именованных лямбда-термов.
 -- Возвращает ошибку парсера если в списке нет лямбда-терма с данным именем.
 lookup' :: FuncName -> Maybe LambdaExpr -> ParserT LambdaExpr
-lookup' name Nothing = fail $ name ++ " undefined"
+lookup' name Nothing = parserFail $ name ++ " undefined"
 lookup' _ (Just f) = return f
 --lookup' name (Just f) = return $ Ident name
 
@@ -85,22 +88,48 @@ addFunc :: FuncName -> LambdaExpr -> FuncTab -> FuncTab
 addFunc name fun ft = (name, fun):(filter (not . (== name) . fst) ft)
 
 -- | Парсер именованного лямбда-терма.
-parseDef :: ParserT (Either LambdaExpr FuncTab)
+parseDef :: ParserT Input
 parseDef = do name <- identifier lexer
               lexeme lexer (char '=')
               value <- parseLevel
               st <- getState
-              return $ Right $ addFunc name value (ftab st)
+              return $ Def $ addFunc name value (ftab st)
+
+-- | Парсер команды изменения порядка редукции.
+setOrder :: ParserT Command
+setOrder = do arg <- lexeme lexer (many1 lower)
+              case arg of
+                "n" -> return $ setOrder' Normal
+                "a" -> return $ setOrder' Applicative
+                "i" -> return $ setOrder' Interactive
+                "normal" -> return $ setOrder' Normal
+                "applicative" -> return $ setOrder' Applicative
+                "interactive" -> return $ setOrder' Interactive
+                _ -> parserFail $ "Invalid reduction order: " ++ arg
+
+-- | Ассоциативный список парсеров команд.
+commands = [("order", setOrder), ("o", setOrder)]
+
+-- | Парсер команды интерпретатора.
+parseCommand :: ParserT Input
+parseCommand = do lexeme lexer (char ':')
+                  name <- lexeme lexer (many1 lower)
+                  let cmd = lookup name commands
+                  if isNothing cmd
+                  then parserFail ("Invalid command: " ++ name)
+                  else liftM Cmd (fromJust cmd)
 
 -- | Парсер строки.
-lineParser :: ParserT (Either LambdaExpr FuncTab)
+lineParser :: ParserT Input
 lineParser = do whiteSpace lexer
-                ret <- (try parseDef) <|> liftM Left parseLevel
-                (try endOfLine >> return ()) <|> eof
+                ret <- (try parseCommand)
+                   <|> (try parseDef)
+                   <|> liftM Expr parseLevel
+                eof
                 return ret
 
 -- | Синтаксический анализ строки.
-parseLine :: ParserState
+parseLine :: Env
           -> String
-          -> Either ParseError (Either LambdaExpr FuncTab)
+          -> Either ParseError Input
 parseLine st str = runParser lineParser st "<stdin>" str

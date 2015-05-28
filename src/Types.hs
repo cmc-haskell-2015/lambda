@@ -10,12 +10,6 @@ type VarName = String
 -- | Имя лямбда-терма.
 type FuncName = String
 
--- | Список связанных переменных.
-type BoundVars = [VarName]
-
--- | Список свободных переменных.
-type UnboundVars = [VarName]
-
 -- | Синтаксическое дерево.
 data LambdaExpr
     = Apply LambdaExpr LambdaExpr -- ^ Аппликация.
@@ -29,17 +23,51 @@ instance Show LambdaExpr where
     show (Var x) = x
 --    show (Ident x) = x
 
+-- | Команда интерпретатора.
+type Command = Env -> Result
+
 -- | Ассоциативный список именованных лямбда-термов.
 type FuncTab = [(FuncName, LambdaExpr)]
 
--- | Состояние парсера.
-data ParserState
-    = ParserState
+-- | Входные данные интерпретатора.
+data Input
+    = Expr LambdaExpr -- ^ Лямбда-выражение.
+    | Def FuncTab     -- ^ Обновленный список именованных лямбда-термов.
+    | Cmd Command     -- ^ Команда интерпретатора.
+
+-- | Порядок редукции лямбда-выражений.
+data ReductionOrder
+    = Normal      -- ^ Нормальный порядок редукции.
+    | Applicative -- ^ Аппликативный порядок редукции.
+    | Interactive -- ^ Получение всех возможных вариантов редукции.
+
+instance Show ReductionOrder where
+    show Normal = "reduction order: normal"
+    show Applicative = "reduction order: applicative"
+    show Interactive = "interactive reduction mode"
+
+instance Eq ReductionOrder where
+    (==) Normal Normal = True
+    (==) Applicative Applicative = True
+    (==) Interactive Interactive = True
+    (==) _ _ = False
+
+-- | Результат интерпретации.
+data Result
+    = Result
+    { state :: Env
+    , message :: String }
+
+-- | Состояние среды.
+data Env
+    = Env
     { ftab :: FuncTab
-    {-, static :: Bool-} }
+    , order :: ReductionOrder
+    , variants :: [LambdaExpr]
+    , lastExpr :: LambdaExpr }
 
 -- | Тип парсера.
-type ParserT a = Parsec String ParserState a
+type ParserT a = Parsec String Env a
 
 -- | Состояние интерпретатора.
 data Eval a
@@ -55,9 +83,3 @@ instance Applicative Eval where
     Cont f <*> Cont expr = Cont (f expr)
     Stop f <*> Stop expr = Stop (f expr)
     Stop f <*> Cont expr = Stop (f expr)
-{-
-instance Monad Eval where
-    return = pure
-    Cont expr >>= f = f expr
-    Stop expr >>= f = Stop expr
--}

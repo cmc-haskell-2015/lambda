@@ -1,5 +1,5 @@
 -- | Интерпретатор.
-module Eval (parseEval) where
+module Eval where
 
 import Types
 import Parser
@@ -79,46 +79,111 @@ etaReduce (Lambda x expr) = Lambda x (etaReduce expr)
 etaReduce (Apply ex1 ex2) = Apply (etaReduce ex1) (etaReduce ex2)
 etaReduce expr = expr
 
--- | Выбор выражения для бета-редукции.
-reduce'' :: Eval LambdaExpr -> LambdaExpr -> Eval LambdaExpr
-reduce'' (Cont ex1) ex2 = pure $ Apply ex1 ex2
-reduce'' (Stop ex1) ex2 = Apply ex1 <$> reduce' ex2
+-- | Выбор выражения для бета-редукции (нормальный порядок редукции).
+reduceNormal' :: Eval LambdaExpr -> LambdaExpr -> Eval LambdaExpr
+reduceNormal' (Cont ex1) ex2 = pure $ Apply ex1 ex2
+reduceNormal' (Stop ex1) ex2 = Apply ex1 <$> reduceNormal ex2
 
 -- | Бета-редукция (нормальный порядок редукции).
-reduce' :: LambdaExpr -> Eval LambdaExpr
-reduce' (Apply (Lambda x func) expr) = pure $ replaceArg x expr func
-reduce' (Apply ex@(Apply ex0 ex1) ex2) = reduce'' (reduce' ex) ex2
-reduce' (Apply ex1 ex2) = Apply ex1 <$> reduce' ex2
-reduce' (Lambda x expr) = Lambda x <$> reduce' expr
-reduce' expr = Stop expr
+reduceNormal :: LambdaExpr -> Eval LambdaExpr
+
+reduceNormal (Apply (Lambda x func) expr) = pure $ replaceArg x expr func
+
+reduceNormal (Apply ex@(Apply ex0 ex1) ex2)
+    = reduceNormal' (reduceNormal ex) ex2
+
+reduceNormal (Apply ex1 ex2) = Apply ex1 <$> reduceNormal ex2
+
+reduceNormal (Lambda x expr) = Lambda x <$> reduceNormal expr
+
+reduceNormal expr = Stop expr
+
+-- | Бета-редукция аппликации лямбда-абстракции
+-- (аппликативный порядок редукции).
+reduceApplicative'' :: Eval LambdaExpr -> LambdaExpr -> Eval LambdaExpr
+reduceApplicative'' (Stop (Lambda x func)) expr = pure $ replaceArg x expr func
+reduceApplicative'' (Cont func) expr = pure $ Apply func expr
+reduceApplicative'' _ _ = error "reduceApplicative''"
+
+-- | Выбор выражения для бета-редукции (аппликативный порядок редукции).
+reduceApplicative' :: LambdaExpr -> Eval LambdaExpr -> Eval LambdaExpr
+
+reduceApplicative' ex1 (Cont ex2) = pure $ Apply ex1 ex2
+
+reduceApplicative' (Lambda x func) (Stop expr)
+    = reduceApplicative'' (Lambda x <$> (reduceApplicative func)) expr
+
+reduceApplicative' ex1 (Stop ex2) = Apply
+                                    <$> reduceApplicative ex1
+                                    <*> pure ex2
+
+-- | Бета-редукция (аппликативный порядок редукции).
+reduceApplicative :: LambdaExpr -> Eval LambdaExpr
+
+reduceApplicative (Apply ex1 ex2)
+    = reduceApplicative' ex1 (reduceApplicative ex2)
+
+reduceApplicative (Lambda x expr) = Lambda x <$> reduceApplicative expr
+
+reduceApplicative expr = Stop expr
+
+-- | Получение всех вариантов редукции.
+reduceAll :: LambdaExpr -> [LambdaExpr]
+
+reduceAll (Apply (Lambda x func) expr)
+    = (replaceArg x expr func)
+    : (map (Apply (Lambda x func)) (reduceAll expr))
+    ++ (map (\e -> (Apply (Lambda x e) expr)) (reduceAll func))
+
+reduceAll (Apply ex1 ex2)
+    = (map (Apply ex1) (reduceAll ex2))
+    ++ (map (flip Apply ex2) (reduceAll ex1))
+
+reduceAll (Lambda x func)
+    = map (Lambda x) (reduceAll func)
+
+reduceAll (Var x) = []
+
+-- | Бета-редукция.
+reduce' :: ReductionOrder -> LambdaExpr -> Eval LambdaExpr
+reduce' Normal = reduceNormal
+reduce' Applicative = reduceApplicative
+reduce' Interactive = error "reduce' Interactive"
 
 -- | Цикл редукции.
 -- Возвращает список шагов редукции.
-eval'' :: Eval LambdaExpr -> [LambdaExpr] -> [LambdaExpr]
-eval'' (Stop expr) xs = (etaReduce expr):xs
-eval'' (Cont expr) xs = eval'' (reduce' expr) $ expr:xs
+eval'' :: ReductionOrder -> Eval LambdaExpr -> [LambdaExpr] -> [LambdaExpr]
+eval'' _ (Stop expr) xs = (etaReduce expr):xs
+eval'' ord (Cont expr) xs = eval'' ord (reduce' ord expr) $ expr:xs
 
 -- | Интерпретация лямбда-выражения.
 -- Возвращает список шагов редукции.
-eval' :: LambdaExpr -> [LambdaExpr]
-eval' expr = eval'' (pure expr) []
+eval' :: ReductionOrder -> LambdaExpr -> [LambdaExpr]
+eval' ord expr = eval'' ord (pure expr) []
+
+-- | Интерпретация лямбда-выражения.
+-- Возвращает список шагов редукции в виде строки.
+evalShow :: ReductionOrder -> LambdaExpr -> String
+evalShow ord expr = intercalate "\n"
+                  $ map show
+                  $ reverse
+                  $ eval' ord expr
 
 -- | Интерпретация синтаксического дерева или ошибки парсера.
-eval :: Either ParseError (Either LambdaExpr FuncTab) -> Either String FuncTab
+eval :: Env -> Either ParseError Input -> Result
 
-eval (Left err) = Left $ show err
+eval env (Left err) = Result env $ show err
 
-eval (Right (Left expr))
-    = Left
-    $ intercalate "\n"
-    $ map show
-    $ reverse
-    $ eval' expr
+eval env@(Env ft ord var prev) (Right (Expr expr))
+    | (ord == Interactive) = Result (Env ft ord (reduceAll expr) expr) ""
+    | otherwise = Result (Env ft ord var expr) (evalShow (order env) expr)
 
-eval (Right (Right ft)) = Right ft
+eval env (Right (Def ft)) = Result
+                            (Env ft (order env) [] (lastExpr env))
+                            (intercalate "\n" $ map show ft)
+
+eval env (Right (Cmd func)) = func env
 
 -- | Синтаксический анализ и интерпретация лямбда-выражения.
-parseEval :: FuncTab -> String -> Either String FuncTab
-parseEval ft str
-    = eval
-    $ parseLine ParserState { ftab = ft } str
+parseEval :: Env -> String -> Result
+parseEval env str = eval env $ parseLine env str
