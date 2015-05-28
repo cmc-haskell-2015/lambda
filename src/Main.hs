@@ -15,8 +15,9 @@ readLine env@(Env ft ord var prev hs)
     | (null hs) = return $ Result env ""
     | otherwise = do fp <- head hs
                      if (fp == stdin)
-                     then putStr "> " >> hFlush stdout
-                     else putStrLn "" >> hFlush stdout
+                     then putStr "> "
+                     else putStrLn ""
+                     hFlush stdout
                      end <- hIsEOF fp
                      if end
                      then hClose fp >> readLine (Env ft ord var prev (tail hs))
@@ -68,7 +69,8 @@ step' (Env ft Interactive [x] prev hs)
          step' $ Env ft Interactive (reduceAll x) x hs
 
 step' env@(Env ft Interactive xs prev hs)
-    = do printVariants 0 xs
+    = do putStrLn $ show prev
+         printVariants 0 xs
          v <- readVariant (length xs)
          case v of
             -3 -> return env

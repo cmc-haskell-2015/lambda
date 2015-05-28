@@ -5,4 +5,4 @@ Or = \x y. x True y
 Not = \x.x False True
 Xor = \x y.And (Or x y) (Not (And x y))
 Cond = \x y z.x y z
-Xor True False
+IsZero = \n.n (\x.False) True
