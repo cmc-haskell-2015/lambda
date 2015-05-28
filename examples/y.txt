@@ -2,3 +2,4 @@
 :load "examples/number.txt"
 Y = \h.(\x.h (x x)) (\x.h (x x))
 Fac = Y \r x.Cond (IsZero x) (\f x.f x) (Mul x (r (Dec x)))
+Factorial1 = Y (\f n. IsZero n (\s z. s z) (Mul n (f (Dec n))))
