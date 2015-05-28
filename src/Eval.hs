@@ -47,11 +47,13 @@ alphaConvert fun@(Lambda x ex) arg n
 
 alphaConvert _ _ _ = error "alphaConvert"
 
+{-
 -- | Подстановка выражения-аргумента вместо связанной переменной
 -- после альфа-конверсии.
 replaceArg' :: VarName -> LambdaExpr -> LambdaExpr -> LambdaExpr
 replaceArg' x arg fun@(Lambda y ex) = Lambda y $ replaceArg x arg ex
 replaceArg' _ _ _ = error "replaceArg'"
+-}
 
 -- | Подстановка выражения-аргумента вместо связанной переменной.
 replaceArg :: VarName -> LambdaExpr -> LambdaExpr -> LambdaExpr
@@ -61,7 +63,7 @@ replaceArg x arg var@(Var y) | (x == y) = arg
 
 replaceArg x arg fun@(Lambda y ex)
     | (x == y) = fun
-    | (contains y arg) = replaceArg' x arg $ alphaConvert fun arg 0
+    | (contains y arg) = replaceArg x arg $ alphaConvert fun arg 0
     | otherwise = Lambda y $ replaceArg x arg ex
 
 replaceArg x arg (Apply ex1 ex2) = Apply (replaceArg x arg ex1)
