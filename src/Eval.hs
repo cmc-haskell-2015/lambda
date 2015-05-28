@@ -153,7 +153,7 @@ reduce' Interactive = error "reduce' Interactive"
 -- | Цикл редукции.
 -- Возвращает список шагов редукции.
 eval'' :: ReductionOrder -> Eval LambdaExpr -> [LambdaExpr] -> [LambdaExpr]
-eval'' _ (Stop expr) xs = (etaReduce expr):xs
+eval'' _ (Stop expr) xs = xs -- (etaReduce expr):xs
 eval'' ord (Cont expr) xs = eval'' ord (reduce' ord expr) $ expr:xs
 
 -- | Интерпретация лямбда-выражения.
@@ -164,11 +164,12 @@ eval' ord expr = eval'' ord (pure expr) []
 -- | Интерпретация лямбда-выражения.
 -- Возвращает список шагов редукции в виде строки.
 evalShow :: ReductionOrder -> LambdaExpr -> String
-evalShow ord expr = intercalate "\n"
+evalShow ord expr = show $ head $ eval' ord expr
+{-evalShow ord expr = intercalate "\n"
                   $ map show
                   $ reverse
                   $ eval' ord expr
-
+-}
 -- | Интерпретация синтаксического дерева или ошибки парсера.
 eval :: Env -> Either ParseError Input -> Result
 

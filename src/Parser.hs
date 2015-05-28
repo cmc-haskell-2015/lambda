@@ -71,12 +71,25 @@ parseFunCall = do name <- identifier lexer
                   st <- getState
                   lookup' name (lookup name (ftab st))
 
+churchInt' :: Int -> LambdaExpr -> LambdaExpr
+churchInt' 0 expr = (Lambda "f" (Lambda "x" expr))
+churchInt' x expr = churchInt' (x - 1) (Apply (Var "f") expr)
+
+churchInt :: Int -> LambdaExpr
+churchInt x = churchInt' x (Var "x")
+
+parseNumber :: ParserT LambdaExpr
+parseNumber = do
+  n <- lexeme lexer (many1 digit)
+  return $ churchInt (read n)               
+
 -- | Парсер лямбда-выражения без аппликации на верхнем уровне вложенности.
 parseLambdaExpr :: ParserT LambdaExpr
 parseLambdaExpr
      =  (try parseLambdaParen)
     <|> (try parseLambdaFunc)
     <|> liftM Var (try parseVar)
+    <|> (try parseNumber)
     <|> parseFunCall
 
 -- | Парсер уровня вложенности.

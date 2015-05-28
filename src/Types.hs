@@ -5,6 +5,8 @@ import System.IO
 import Control.Applicative
 import Text.Parsec.Prim
 
+import Data.Maybe
+
 -- | Имя переменной.
 type VarName = String
 
@@ -18,9 +20,24 @@ data LambdaExpr
     | Var VarName                 -- ^ Переменная.
 --    | Ident FuncName              -- ^ Именованный лямбда-терм.
 
+tryUnchurchInt' :: VarName -> VarName -> LambdaExpr -> Maybe Int
+tryUnchurchInt' x y (Apply (Var x1) expr)
+    | x == x1 = (+1) <$> tryUnchurchInt' x y expr
+    | otherwise = Nothing
+tryUnchurchInt' x y (Var y1)
+    | y == y1 = Just 0
+    | otherwise = Nothing
+tryUnchurchInt' _ _ _ = Nothing
+
+tryUnchurchInt :: LambdaExpr -> Maybe Int
+tryUnchurchInt (Lambda x (Lambda y expr)) = tryUnchurchInt' x y expr
+tryUnchurchInt _ = Nothing
+
 instance Show LambdaExpr where
     show (Apply f x) = '(':(show f) ++ ' ':(show x) ++ ")"
-    show (Lambda x f) = "(\\" ++ x ++ '.':(show f) ++ ")"
+    show fun@(Lambda x f) = case tryUnchurchInt fun of
+        Nothing -> "(\\" ++ x ++ '.':(show f) ++ ")"
+        Just n  -> show n
     show (Var x) = x
 --    show (Ident x) = x
 
