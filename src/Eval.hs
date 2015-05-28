@@ -174,12 +174,12 @@ eval :: Env -> Either ParseError Input -> Result
 
 eval env (Left err) = Result env $ show err
 
-eval env@(Env ft ord var prev) (Right (Expr expr))
-    | (ord == Interactive) = Result (Env ft ord (reduceAll expr) expr) ""
-    | otherwise = Result (Env ft ord var expr) (evalShow (order env) expr)
+eval env@(Env ft ord var prev hs) (Right (Expr expr))
+    | (ord == Interactive) = Result (Env ft ord (reduceAll expr) expr hs) ""
+    | otherwise = Result (Env ft ord var expr hs) (evalShow (order env) expr)
 
 eval env (Right (Def ft)) = Result
-                            (Env ft (order env) [] (lastExpr env))
+                            (Env ft (order env) [] (lastExpr env) (files env))
                             (intercalate "\n" $ map show ft)
 
 eval env (Right (Cmd func)) = func env

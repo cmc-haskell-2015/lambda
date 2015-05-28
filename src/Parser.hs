@@ -107,8 +107,17 @@ setOrder = do arg <- lexeme lexer (many1 lower)
                 "interactive" -> return $ setOrder' Interactive
                 _ -> parserFail $ "Invalid reduction order: " ++ arg
 
+-- | Парсер команды загрузки программы из файла.
+loadFile :: ParserT Command
+loadFile = do arg <- stringLiteral lexer
+              return $ loadFile' arg
+
 -- | Ассоциативный список парсеров команд.
-commands = [("order", setOrder), ("o", setOrder)]
+commands =
+         [ ("o", setOrder)
+         , ("l", loadFile)
+         , ("order", setOrder)
+         , ("load", loadFile) ]
 
 -- | Парсер команды интерпретатора.
 parseCommand :: ParserT Input

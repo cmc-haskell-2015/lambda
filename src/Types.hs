@@ -1,6 +1,7 @@
 -- | Определения типов.
 module Types where
 
+import System.IO
 import Control.Applicative
 import Text.Parsec.Prim
 
@@ -64,7 +65,8 @@ data Env
     { ftab :: FuncTab
     , order :: ReductionOrder
     , variants :: [LambdaExpr]
-    , lastExpr :: LambdaExpr }
+    , lastExpr :: LambdaExpr
+    , files :: [IO Handle] }
 
 -- | Тип парсера.
 type ParserT a = Parsec String Env a
